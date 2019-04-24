@@ -13,6 +13,7 @@ MotorThresholdDetermination::MotorThresholdDetermination()
     _confidenceInterval = 0;
     _priorMean = 50;
     _priorStandardDeviation = 8;
+    _isPEST = false;
     _MEPResults.push_back(false);
     _MEPResults.push_back(true);
     _powerCandidates.push_back(0.1);
@@ -20,7 +21,7 @@ MotorThresholdDetermination::MotorThresholdDetermination()
     _priorFunction = std::vector<double>(kPowerArraySize, 0.0);
     _likelihoodFunction = std::vector<double>(kPowerArraySize, 1.0);
     _posteriorFunction = std::vector<double>(kPowerArraySize, 0.0);
-
+    _logLikelihoodFunction = std::vector<double>(kPowerArraySize, 0.0);
 
     for (size_t idx = 0; idx < kPowerArraySize; idx++)
     {
@@ -50,8 +51,7 @@ std::vector<double> MotorThresholdDetermination::GetCumulativeProbabilityFunctio
 
 void MotorThresholdDetermination::UpdateMotorThresholdCandidate()
 {
-    double logLikelihoodFunction[kPowerArraySize] = {};
-
+    _logLikelihoodFunction = std::vector<double>(kPowerArraySize, 0.0);
     uint16_t n = _MEPResults.size();
 
     for (size_t idxCandidate = 0; idxCandidate < n; idxCandidate++)
@@ -62,12 +62,12 @@ void MotorThresholdDetermination::UpdateMotorThresholdCandidate()
         {
             if (_MEPResults[idxCandidate])
             {
-                logLikelihoodFunction[idx] += log(1 - MEPProbabilityFunction[idx]);
+                _logLikelihoodFunction[idx] += log(1 - MEPProbabilityFunction[idx]);
             }
 
             else
             {
-                logLikelihoodFunction[idx] += log(MEPProbabilityFunction[idx]);
+                _logLikelihoodFunction[idx] += log(MEPProbabilityFunction[idx]);
             }
         }
     }
@@ -75,17 +75,21 @@ void MotorThresholdDetermination::UpdateMotorThresholdCandidate()
     double x[kPowerArraySize] = {};
 
     uint16_t powerCandidateIdx = 0;
-    double functionMaximum = logLikelihoodFunction[powerCandidateIdx];
+    double functionMaximum = _logLikelihoodFunction[powerCandidateIdx];
 
     for (size_t idx = 0; idx < kPowerArraySize; idx++)
     {
         x[idx] = 0.1 * idx;
-        logLikelihoodFunction[idx] -= pow(x[idx] - _priorMean, 2) / (2 * pow(_priorStandardDeviation, 2));
 
-        if (logLikelihoodFunction[idx] > functionMaximum)
+        if (!_isPEST)
+        {
+            _logLikelihoodFunction[idx] -= pow(x[idx] - _priorMean, 2) / (2 * pow(_priorStandardDeviation, 2));
+        }
+
+        if (_logLikelihoodFunction[idx] >= functionMaximum)
         {
             powerCandidateIdx = idx;
-            functionMaximum = logLikelihoodFunction[idx];
+            functionMaximum = _logLikelihoodFunction[idx];
         }
     }
 
@@ -264,4 +268,19 @@ bool MotorThresholdDetermination::MotorThresholdSimulation(double inMTCandidate,
     bool isMEP = (rand() % 1000) < round(MEPProbability*1000);
     _numberOfPulses++;
     return isMEP;
+}
+
+void MotorThresholdDetermination::ChangeAlgorithm(bool inIsPEST)
+{
+    _isPEST = inIsPEST;
+}
+
+std::vector<double> MotorThresholdDetermination::GetMotorThresholdVector()
+{
+    return _powerCandidates;
+}
+
+std::vector<double> MotorThresholdDetermination::GetLogLikelihoodFunction()
+{
+    return _logLikelihoodFunction;
 }

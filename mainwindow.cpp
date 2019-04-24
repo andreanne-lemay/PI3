@@ -2,13 +2,11 @@
 #include "ui_mainwindow.h"
 #include "MotorThresholdDetermination.h"
 #include <math.h>
-#include <iostream>
 #include <vector>
 #include <stdlib.h>
 #include <time.h>
 #include <fstream>
 #include <unistd.h>
-#include <thread>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -32,13 +30,15 @@ MainWindow::MainWindow(QWidget *parent) :
     QFont font("FontAwesome", 11);
     ui->customPlot->xAxis->setTickLabelFont(font);
     ui->customPlot->yAxis->setTickLabelFont(font);
+    ui->customPlot->yAxis->setLabel("Densité");
     ui->customPlot->xAxis->setLabel("Puissance (%MSO)");
     ui->customPlot->xAxis->setLabelFont(font);
+    ui->customPlot->yAxis->setLabelFont(font);
     ui->customPlot->xAxis->setRange(0,100);
     ui->customPlot->yAxis2->setVisible(true);
     ui->customPlot->yAxis2->setTickLabels(false);
-    ui->customPlot->yAxis->setRange(0, 0.45);
-    ui->customPlot->yAxis->setLabel("Densité");
+    ui->customPlot->yAxis->setRange(0, 0.35);
+
 
     // make left and bottom axes always transfer their ranges to right and top axes:
     connect(ui->customPlot->xAxis, SIGNAL(rangeChanged(QCPRange)), ui->customPlot->xAxis2, SLOT(setRange(QCPRange)));
@@ -47,10 +47,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QVector<double> x(1001), y0(1001), y1(1001), y2(1001);
     for (int i=0; i<1001; i++)
     {
-      x[i] = i / 10.0;
-      y0[i] = 0;
-      y1[i] = 0;
-      y2[i] = 0;
+        x[i] = i / 10.0;
+        y0[i] = 0;
+        y1[i] = 0;
+        y2[i] = 0;
     }
 
     // pass data points to graphs:
@@ -99,6 +99,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->nbPulses->setDigitCount(QString("%1").arg(0).length());
     ui->seuil->setDigitCount(QString("%1").arg(0).length());
+    isPEST = false;
 }
 
 MainWindow::~MainWindow()
@@ -109,7 +110,6 @@ MainWindow::~MainWindow()
 
 void MainWindow::makePlot(std::vector<double> prior, std::vector<double> likelihood, std::vector<double> posterior)
 {
-    MotorThresholdDetermination MT;
     // generate some points of data (y0 for first, y1 for second graph):
     QVector<double> x(1001), y0(1001), y1(1001), y2(1001);
     for (size_t i=0; i<1001; i++)
@@ -120,23 +120,49 @@ void MainWindow::makePlot(std::vector<double> prior, std::vector<double> likelih
       y2[i] = posterior[i];
     }
     ui->customPlot->graph(0)->setData(x, y0);
+    ui->customPlot->graph(0)->setName("Connaissances antérieures");
     ui->customPlot->graph(1)->setData(x, y1);
+    ui->customPlot->graph(1)->setName("Données recueillies");
     ui->customPlot->graph(2)->setData(x, y2);
-    ui->customPlot->graph(2)->rescaleAxes();
+    ui->customPlot->graph(2)->setName("Prédiction");
+    ui->customPlot->legend->setVisible(true);
+    ui->customPlot->graph(2)->rescaleAxes(true);
     ui->customPlot->graph(1)->rescaleAxes(true);
     ui->customPlot->graph(0)->rescaleAxes(true);
-    ui->customPlot->yAxis->setRange(0, 0.35);
+    ui->customPlot->yAxis->setLabel("Densité");
     ui->customPlot->replot();
     ui->customPlot->update();
     ui->customPlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectPlottables);
 }
 
+void MainWindow::makePESTPlot(std::vector<double> loglikelihoodFunction)
+{
+    ui->customPlot->graph(0)->data()->clear();
+    ui->customPlot->graph(1)->data()->clear();
+    ui->customPlot->graph(2)->data()->clear();
+    ui->customPlot->legend->setVisible(false);
+    QVector<double> x(1001), y0(1001);
+    for (size_t i=0; i<1001; i++)
+    {
+      x[i] = i / 10.0;
+      y0[i] = loglikelihoodFunction[i];
+    }
+    ui->customPlot->graph(0)->setData(x, y0);
+    ui->customPlot->graph(0)->rescaleAxes();
+    ui->customPlot->yAxis->setLabel("Fonction de vraisemblance");
+
+
+    ui->customPlot->replot();
+    ui->customPlot->update();
+    ui->customPlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectPlottables);
+}
 
 void MainWindow::on_clear_clicked()
 {
     ui->customPlot->graph(0)->data()->clear();
     ui->customPlot->graph(1)->data()->clear();
     ui->customPlot->graph(2)->data()->clear();
+    ui->customPlot->yAxis->setRange(0, 0.35);
     ui->customPlot->replot();
 
     ui->sliderMT->setValue(50);
@@ -191,7 +217,7 @@ void MainWindow::on_Start_clicked()
 {
      MotorThresholdDetermination MT;
 
-     double stopCriteria = 0;
+     bool stopCriteria = false;
 
      std::vector<double> prior = MT.GetPriorFunction();
      std::vector<double> likelihood = MT.GetLikelihoodFunction();
@@ -202,8 +228,13 @@ void MainWindow::on_Start_clicked()
      QString realMT = ui->VMT->text();
      double trueMT = realMT.toDouble();
 
+     if (isPEST)
+     {
 
-     while (stopCriteria < 0.95)
+         MT.ChangeAlgorithm(true);
+     }
+
+     while (!stopCriteria)
      {
          ui->Start->setStyleSheet("background-color: rgb(255, 219, 219)");
          ui->Start->setText("En cours");
@@ -213,16 +244,38 @@ void MainWindow::on_Start_clicked()
          double MTC = MT.GetMotorThresholdCandidate();
          MT.AddPowerCandidate(MTC);
          MT.AddMEPResult(MT.MotorThresholdSimulation(MTC, trueMT));
-         MT.UpdateBayesianFunctions();
-         likelihood = MT.GetLikelihoodFunction();
-         posterior = MT.GetPosteriorFunction();
-         stopCriteria = MT.GetConfidenceInterval();
 
-         this->makePlot(prior, likelihood, posterior);
-         usleep(500000);
+         if (!isPEST)
+         {
+            MT.UpdateBayesianFunctions();
+            likelihood = MT.GetLikelihoodFunction();
+            posterior = MT.GetPosteriorFunction();
+
+            this->makePlot(prior, likelihood, posterior);
+
+
+            if (MT.GetConfidenceInterval() > 0.95)
+            {
+                stopCriteria = true;
+            }
+            usleep(5e5);
+         }
+
+         else
+         {
+            std::vector<double> MTCandidates = MT.GetMotorThresholdVector();
+            this->makePESTPlot(MT.GetLogLikelihoodFunction());
+
+
+            if(round(MTCandidates.back()) == round(MTCandidates[MTCandidates.size() - 2]))
+            {
+                stopCriteria = true;
+            }
+            usleep(2e5);
+         }
 
      }
-
+     MT.UpdateMotorThresholdCandidate();
      ui->Start->setText("Commencer");
      ui->Start->setStyleSheet("background-color: rgb(180, 224, 184)");
      QString seuilMoteur = QString::number(double(MT.GetMotorThresholdCandidate()));
@@ -235,4 +288,13 @@ void MainWindow::on_Start_clicked()
 }
 
 
+void MainWindow::on_checkBox_stateChanged()
+{
+    ui->customPlot->graph(0)->data()->clear();
+    ui->customPlot->graph(1)->data()->clear();
+    ui->customPlot->graph(2)->data()->clear();
+    ui->customPlot->yAxis->setRange(0, 0.35);
+    ui->customPlot->replot();
 
+    isPEST = !isPEST;
+}

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>307</height>
+    <height>333</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -126,7 +126,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Estimation à priori (%MSO)</string>
+         <string>Estimation a priori (%MSO)</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignCenter</set>
@@ -202,10 +202,36 @@
          </font>
         </property>
         <property name="text">
-         <string>Nombre de pulses</string>
+         <string>Nombre d'essais</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer_5">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item alignment="Qt::AlignHCenter|Qt::AlignVCenter">
+       <widget class="QCheckBox" name="checkBox">
+        <property name="font">
+         <font>
+          <family>FontAwesome</family>
+          <pointsize>12</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Aucune information a priori</string>
         </property>
        </widget>
       </item>

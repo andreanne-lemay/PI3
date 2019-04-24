@@ -18,6 +18,7 @@ class MotorThresholdDetermination
         std::vector<double> GetPosteriorFunction();
         std::vector<double> GetLikelihoodFunction();
         std::vector<double> GetPriorFunction();
+        std::vector<double> GetMotorThresholdVector();
         void UpdateMotorThresholdCandidate();
         uint16_t GetNumberOfPulses() const;
         bool MotorThresholdSimulation(double inMTCandidate, double inTrueMT);
@@ -26,6 +27,8 @@ class MotorThresholdDetermination
         void UpdateBayesianFunctions();
         void SetPriorMT(double inPriorMT);
         double GetMotorThresholdCandidate();
+        void ChangeAlgorithm(bool inIsPEST);
+        std::vector<double> GetLogLikelihoodFunction();
 
     private:
         std::vector<double> GetCumulativeProbabilityFunction(double inMT);
@@ -38,6 +41,8 @@ class MotorThresholdDetermination
         double _confidenceInterval;
         double _priorMean;
         double _priorStandardDeviation;
+        bool _isPEST;
+        std::vector<double> _logLikelihoodFunction;
         std::vector<bool> _MEPResults;
         std::vector<double> _powerCandidates;
         std::vector<double> _priorFunction;

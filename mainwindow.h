@@ -34,9 +34,13 @@ private slots:
 
     void on_Start_clicked();
 
+    void on_checkBox_stateChanged();
+
 private:
     void makePlot(std::vector<double> prior, std::vector<double> likelihood, std::vector<double> posterior);
+    void makePESTPlot(std::vector<double> loglikelihoodFunction);
     Ui::MainWindow *ui;
+    bool isPEST;
 };
 
 #endif // MAINWINDOW_H
